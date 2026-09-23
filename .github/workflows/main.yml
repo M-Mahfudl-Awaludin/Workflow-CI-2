@@ -10,6 +10,10 @@ on:
       - main
 
 
+permissions:
+  contents: write
+
+
 env:
   CSV_URL: "MLProject/hasil_Preprocessing_gojek.csv"
 
@@ -23,11 +27,13 @@ jobs:
     steps:
 
       # ======================================================
-      # 1. CHECKOUT REPOSITORY
+      # 1. CHECKOUT
       # ======================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
 
       # ======================================================
@@ -62,15 +68,12 @@ jobs:
         run: |
           conda activate gojek-sentiment-mlflow
 
-          echo "Python:"
+          echo "=========================================="
+          echo "ENVIRONMENT"
+          echo "=========================================="
+
           python --version
-
-          echo ""
-          echo "MLflow:"
           mlflow --version
-
-          echo ""
-          echo "Pip:"
           pip --version
 
 
@@ -91,11 +94,12 @@ jobs:
 
 
       # ======================================================
-      # 6. INSPECT MLFLOW ARTIFACTS
+      # 6. INSPECT MLFLOW
       # ======================================================
 
       - name: Inspect MLflow artifacts
         run: |
+
           echo "=========================================="
           echo "MLFLOW DIRECTORY"
           echo "=========================================="
@@ -115,7 +119,6 @@ jobs:
       # ======================================================
 
       - name: Find MLflow model
-        shell: bash -el {0}
         run: |
 
           echo "=========================================="
@@ -128,7 +131,6 @@ jobs:
             | head -n 1)
 
           if [ -z "$MODEL_PATH" ]; then
-
             echo "ERROR: Model MLflow tidak ditemukan."
 
             echo ""
@@ -145,10 +147,6 @@ jobs:
 
           echo "MODEL_PATH=$MODEL_PATH" >> "$GITHUB_ENV"
 
-
-          # --------------------------------------------------
-          # Ambil RUN_ID dari path
-          # --------------------------------------------------
 
           RUN_ID=$(echo "$MODEL_PATH" \
             | sed -E 's#^.*/mlruns/[^/]+/([^/]+)/artifacts/model$#\1#')
@@ -201,36 +199,7 @@ jobs:
 
 
       # ======================================================
-      # 9. PUSH MLFLOW ARTIFACTS TO GITHUB
-      # ======================================================
-
-      - name: Push MLflow artifacts
-        run: |
-
-          echo "=========================================="
-          echo "PUSH MLFLOW ARTIFACTS"
-          echo "=========================================="
-
-          git config --global user.name \
-            "${{ secrets.GIT_USERNAME }}"
-
-          git config --global user.email \
-            "${{ secrets.GIT_EMAIL }}"
-
-          git remote set-url origin \
-            https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
-
-          git add MLProject/mlruns
-
-          git commit \
-            -m "Save MLflow run artifacts [skip ci]" \
-            || echo "No changes to commit"
-
-          git push origin main
-
-
-      # ======================================================
-      # 10. BUILD DOCKER IMAGE
+      # 9. BUILD DOCKER IMAGE
       # ======================================================
 
       - name: Build Docker Image
@@ -243,9 +212,6 @@ jobs:
           echo "BUILD DOCKER IMAGE"
           echo "=========================================="
 
-          echo "Model path:"
-          echo "$MODEL_PATH"
-
           mlflow models build-docker \
             --model-uri "file://$GITHUB_WORKSPACE/$MODEL_PATH" \
             --name gojek-sentiment
@@ -257,7 +223,7 @@ jobs:
 
 
       # ======================================================
-      # 11. LOGIN DOCKER HUB
+      # 10. LOGIN DOCKER HUB
       # ======================================================
 
       - name: Login to Docker Hub
@@ -268,7 +234,7 @@ jobs:
 
 
       # ======================================================
-      # 12. TAG DOCKER IMAGE
+      # 11. TAG DOCKER IMAGE
       # ======================================================
 
       - name: Tag Docker Image
@@ -282,12 +248,13 @@ jobs:
             gojek-sentiment \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest
 
+          echo ""
           echo "Image:"
           echo "${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest"
 
 
       # ======================================================
-      # 13. PUSH DOCKER IMAGE
+      # 12. PUSH DOCKER IMAGE
       # ======================================================
 
       - name: Push Docker Image
@@ -302,3 +269,27 @@ jobs:
 
           echo ""
           echo "Docker image berhasil di-push ke Docker Hub."
+
+
+      # ======================================================
+      # 13. PUSH MLFLOW ARTIFACTS
+      # ======================================================
+
+      - name: Push MLflow artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+
+          echo "=========================================="
+          echo "PUSH MLFLOW ARTIFACTS"
+          echo "=========================================="
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add MLProject/mlruns
+
+          git commit \
+            -m "Save MLflow run artifacts [skip ci]" \
+            || echo "No changes to commit"
+
+          git push
