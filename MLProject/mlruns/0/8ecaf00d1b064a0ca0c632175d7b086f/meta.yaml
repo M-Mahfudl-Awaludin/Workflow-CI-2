@@ -1,0 +1,15 @@
+artifact_uri: file:///home/runner/work/Workflow-CI-2/Workflow-CI-2/MLProject/mlruns/0/8ecaf00d1b064a0ca0c632175d7b086f/artifacts
+end_time: 1790173535618
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8ecaf00d1b064a0ca0c632175d7b086f
+run_name: defiant-grouse-291
+run_uuid: 8ecaf00d1b064a0ca0c632175d7b086f
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1790173506252
+status: 3
+tags: []
+user_id: runner

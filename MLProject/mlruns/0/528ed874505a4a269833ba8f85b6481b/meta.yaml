@@ -1,0 +1,15 @@
+artifact_uri: file:///home/runner/work/Workflow-CI-2/Workflow-CI-2/MLProject/mlruns/0/528ed874505a4a269833ba8f85b6481b/artifacts
+end_time: 1790173535108
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 528ed874505a4a269833ba8f85b6481b
+run_name: nosy-smelt-125
+run_uuid: 528ed874505a4a269833ba8f85b6481b
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1790173535101
+status: 3
+tags: []
+user_id: runner
