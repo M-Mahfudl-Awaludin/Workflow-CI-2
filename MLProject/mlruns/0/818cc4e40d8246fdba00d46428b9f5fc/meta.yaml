@@ -1,0 +1,15 @@
+artifact_uri: file:///home/runner/work/Workflow-CI-2/Workflow-CI-2/MLProject/mlruns/0/818cc4e40d8246fdba00d46428b9f5fc/artifacts
+end_time: 1790173062949
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 818cc4e40d8246fdba00d46428b9f5fc
+run_name: upset-sponge-539
+run_uuid: 818cc4e40d8246fdba00d46428b9f5fc
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1790173035562
+status: 3
+tags: []
+user_id: runner
