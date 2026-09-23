@@ -1,0 +1,131 @@
+name: CI/CD MLflow
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  CSV_URL: "MLProject/hasil_Preprocessing_gojek.csv"
+
+jobs:
+  train-and-deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Setup Python
+      - name: Set up Python 3.12.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7"
+
+      # Setup Conda
+      - name: Set up Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: MLProject/conda.yaml
+          activate-environment: gojek-sentiment-mlflow
+          auto-activate-base: false
+          python-version: 3.12.7
+
+      # Install dependencies
+      - name: Install dependencies
+        shell: bash -el {0}
+        run: |
+          conda activate gojek-sentiment-mlflow
+          pip install -r MLProject/requirements.txt
+
+      # Run MLflow Project
+      - name: Run MLflow Project
+        shell: bash -el {0}
+        run: |
+          conda activate gojek-sentiment-mlflow
+
+          cd MLProject
+
+          mlflow run . \
+            -P data_path=hasil_Preprocessing_gojek.csv \
+            --env-manager=local
+
+      # Get latest MLflow run ID
+      - name: Get latest MLflow run ID
+        shell: bash -el {0}
+        run: |
+          RUN_ID=$(ls -td MLProject/mlruns/0/*/ 2>/dev/null \
+            | head -n 1 \
+            | xargs -n 1 basename)
+
+          if [ -z "$RUN_ID" ]; then
+            echo "MLflow run tidak ditemukan."
+            exit 1
+          fi
+
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "Latest MLflow Run ID: $RUN_ID"
+
+      # Verify model
+      - name: Verify MLflow model
+        run: |
+          MODEL_PATH="MLProject/mlruns/0/$RUN_ID/artifacts/model"
+
+          if [ ! -d "$MODEL_PATH" ]; then
+            echo "Model tidak ditemukan: $MODEL_PATH"
+            exit 1
+          fi
+
+          echo "Model ditemukan:"
+          ls -la "$MODEL_PATH"
+
+      # Commit MLflow artifacts
+      - name: Push MLflow artifacts
+        run: |
+          git config --global user.name "${{ secrets.GIT_USERNAME }}"
+          git config --global user.email "${{ secrets.GIT_EMAIL }}"
+
+          git remote set-url origin \
+            https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
+
+          git add MLProject/mlruns
+
+          git commit -m "Save MLflow run artifacts" \
+            || echo "No changes to commit"
+
+          git push origin main
+
+      # Build Docker image
+      - name: Build Docker Image
+        shell: bash -el {0}
+        run: |
+          conda activate gojek-sentiment-mlflow
+
+          mlflow models build-docker \
+            --model-uri "file://$GITHUB_WORKSPACE/MLProject/mlruns/0/$RUN_ID/artifacts/model" \
+            --name gojek-sentiment
+
+      # Login Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # Tag image
+      - name: Tag Docker Image
+        run: |
+          docker tag gojek-sentiment \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest
+
+      # Push image
+      - name: Push Docker Image
+        run: |
+          docker push \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest
