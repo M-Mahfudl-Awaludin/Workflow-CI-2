@@ -23,7 +23,7 @@ jobs:
     steps:
 
       # ======================================================
-      # 1. CHECKOUT
+      # 1. CHECKOUT REPOSITORY
       # ======================================================
 
       - name: Checkout repository
@@ -54,20 +54,24 @@ jobs:
 
 
       # ======================================================
-      # 4. INSTALL DEPENDENCIES
+      # 4. CHECK ENVIRONMENT
       # ======================================================
 
-      - name: Install dependencies
+      - name: Check environment
         shell: bash -el {0}
         run: |
-
           conda activate gojek-sentiment-mlflow
 
+          echo "Python:"
           python --version
 
-          pip --version
-
+          echo ""
+          echo "MLflow:"
           mlflow --version
+
+          echo ""
+          echo "Pip:"
+          pip --version
 
 
       # ======================================================
@@ -77,7 +81,6 @@ jobs:
       - name: Run MLflow Project
         shell: bash -el {0}
         run: |
-
           conda activate gojek-sentiment-mlflow
 
           cd MLProject
@@ -88,32 +91,23 @@ jobs:
 
 
       # ======================================================
-      # 6. DEBUG MLFLOW DIRECTORY
+      # 6. INSPECT MLFLOW ARTIFACTS
       # ======================================================
 
       - name: Inspect MLflow artifacts
         run: |
-
           echo "=========================================="
           echo "MLFLOW DIRECTORY"
           echo "=========================================="
 
-          if [ -d "MLProject/mlruns" ]; then
-
-            find MLProject/mlruns \
-              -maxdepth 6 \
-              -print
-
-          else
-
-            echo "MLProject/mlruns tidak ditemukan."
-
-            echo "Mencari semua mlruns:"
-            find . -type d -name "mlruns" -print
-
+          if [ ! -d "MLProject/mlruns" ]; then
+            echo "ERROR: MLProject/mlruns tidak ditemukan."
             exit 1
-
           fi
+
+          find MLProject/mlruns \
+            -maxdepth 7 \
+            -print
 
 
       # ======================================================
@@ -125,7 +119,7 @@ jobs:
         run: |
 
           echo "=========================================="
-          echo "SEARCHING MLflow MODEL"
+          echo "SEARCHING MLFLOW MODEL"
           echo "=========================================="
 
           MODEL_PATH=$(find MLProject/mlruns \
@@ -135,16 +129,15 @@ jobs:
 
           if [ -z "$MODEL_PATH" ]; then
 
-            echo "Model MLflow tidak ditemukan."
+            echo "ERROR: Model MLflow tidak ditemukan."
 
             echo ""
             echo "Isi MLflow directory:"
             find MLProject/mlruns \
-              -maxdepth 7 \
+              -maxdepth 8 \
               -print
 
             exit 1
-
           fi
 
           echo "Model ditemukan:"
@@ -153,16 +146,16 @@ jobs:
           echo "MODEL_PATH=$MODEL_PATH" >> "$GITHUB_ENV"
 
 
+          # --------------------------------------------------
           # Ambil RUN_ID dari path
+          # --------------------------------------------------
+
           RUN_ID=$(echo "$MODEL_PATH" \
             | sed -E 's#^.*/mlruns/[^/]+/([^/]+)/artifacts/model$#\1#')
 
           if [ -z "$RUN_ID" ]; then
-
-            echo "RUN_ID gagal ditemukan."
-
+            echo "ERROR: RUN_ID gagal ditemukan."
             exit 1
-
           fi
 
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
@@ -191,12 +184,8 @@ jobs:
           echo "MODEL_PATH=$MODEL_PATH"
 
           if [ ! -d "$MODEL_PATH" ]; then
-
-            echo "Model tidak ditemukan:"
-            echo "$MODEL_PATH"
-
+            echo "ERROR: Model tidak ditemukan."
             exit 1
-
           fi
 
           echo ""
@@ -206,13 +195,21 @@ jobs:
           echo "Isi model:"
           ls -lah "$MODEL_PATH"
 
+          echo ""
+          echo "MLmodel:"
+          cat "$MODEL_PATH/MLmodel"
+
 
       # ======================================================
-      # 9. COMMIT MLFLOW ARTIFACTS
+      # 9. PUSH MLFLOW ARTIFACTS TO GITHUB
       # ======================================================
 
       - name: Push MLflow artifacts
         run: |
+
+          echo "=========================================="
+          echo "PUSH MLFLOW ARTIFACTS"
+          echo "=========================================="
 
           git config --global user.name \
             "${{ secrets.GIT_USERNAME }}"
@@ -226,7 +223,7 @@ jobs:
           git add MLProject/mlruns
 
           git commit \
-            -m "Save MLflow run artifacts" \
+            -m "Save MLflow run artifacts [skip ci]" \
             || echo "No changes to commit"
 
           git push origin main
@@ -242,12 +239,18 @@ jobs:
 
           conda activate gojek-sentiment-mlflow
 
-          echo "Building Docker image..."
+          echo "=========================================="
+          echo "BUILD DOCKER IMAGE"
+          echo "=========================================="
+
+          echo "Model path:"
+          echo "$MODEL_PATH"
 
           mlflow models build-docker \
             --model-uri "file://$GITHUB_WORKSPACE/$MODEL_PATH" \
             --name gojek-sentiment
 
+          echo ""
           echo "Docker image berhasil dibuat."
 
           docker images
@@ -271,9 +274,16 @@ jobs:
       - name: Tag Docker Image
         run: |
 
+          echo "=========================================="
+          echo "TAG DOCKER IMAGE"
+          echo "=========================================="
+
           docker tag \
             gojek-sentiment \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest
+
+          echo "Image:"
+          echo "${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest"
 
 
       # ======================================================
@@ -283,5 +293,12 @@ jobs:
       - name: Push Docker Image
         run: |
 
+          echo "=========================================="
+          echo "PUSH DOCKER IMAGE"
+          echo "=========================================="
+
           docker push \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO }}:latest
+
+          echo ""
+          echo "Docker image berhasil di-push ke Docker Hub."
